@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conflict-Free University Timetable Generator</title>
+  <style>
+    :root {
+      --navy: #152642;
+      --blue: #3157d5;
+      --blue-light: #edf2ff;
+      --bg: #f5f7fb;
+      --text: #1f2937;
+      --muted: #667085;
+      --border: #e3e8f1;
+      --green: #13845b;
+      --red: #c0392b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      background: linear-gradient(135deg, #152642, #3157d5);
+      color: white;
+      padding: 30px 20px;
+    }
+    .header-inner, main { max-width: 1120px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 3vw, 2.25rem); }
+    header p { margin: 0; color: #e3eaff; }
+    main { padding: 24px 18px 42px; }
+    .layout { display: grid; grid-template-columns: 350px 1fr; gap: 20px; align-items: start; }
+    .card {
+      background: white; border: 1px solid var(--border); border-radius: 14px;
+      padding: 20px; box-shadow: 0 5px 18px rgba(20, 38, 66, .04);
+    }
+    h2 { margin: 0 0 15px; font-size: 1.15rem; color: var(--navy); }
+    label { display: block; font-size: .88rem; font-weight: 700; margin: 12px 0 5px; }
+    input, select {
+      width: 100%; border: 1px solid #cfd7e5; border-radius: 8px; padding: 10px 11px;
+      font: inherit; background: white; color: var(--text);
+    }
+    input:focus, select:focus { outline: 2px solid #b8c7ff; border-color: var(--blue); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button {
+      border: 0; border-radius: 9px; padding: 11px 14px; font: inherit; font-weight: 700;
+      cursor: pointer; transition: transform .05s ease, opacity .15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    .primary { background: var(--blue); color: white; width: 100%; margin-top: 16px; }
+    .secondary { background: var(--blue-light); color: var(--blue); }
+    .danger { background: #fff0ef; color: var(--red); padding: 7px 10px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .muted { color: var(--muted); font-size: .9rem; }
+    .course-list { display: grid; gap: 8px; margin-top: 14px; }
+    .course-item {
+      border: 1px solid var(--border); border-radius: 9px; padding: 10px 11px;
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .course-item strong { display: block; }
+    .course-item small { color: var(--muted); }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .stat { background: var(--blue-light); border-radius: 10px; padding: 12px; }
+    .stat span { display: block; color: var(--muted); font-size: .78rem; }
+    .stat strong { display: block; font-size: 1.4rem; color: var(--navy); }
+    .message { display: none; padding: 11px 13px; border-radius: 9px; margin: 12px 0; }
+    .message.success { display: block; background: #eaf8f1; color: #126444; }
+    .message.error { display: block; background: #fff0ef; color: #9b2c22; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 650px; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: #f8faff; color: var(--navy); font-size: .83rem; }
+    td { font-size: .9rem; }
+    .pill { display: inline-block; background: #edf2ff; color: #2948b8; padding: 3px 8px; border-radius: 99px; font-size: .78rem; font-weight: 700; }
+    .empty { padding: 28px 10px; text-align: center; color: var(--muted); }
+    .section-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .section-head h2 { margin-bottom: 0; }
+    footer { text-align: center; color: var(--muted); padding: 0 16px 24px; font-size: .82rem; }
+    @media (max-width: 850px) {
+      .layout { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .two { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+      .card { padding: 15px; }
+    }
+    @media print {
+      header { background: white; color: black; padding: 10px 0; }
+      header p { color: #333; }
+      body { background: white; }
+      .layout { display: block; }
+      .input-card, .toolbar, footer, .no-print { display: none !important; }
+      main { padding: 0; }
+      .card { box-shadow: none; border: 0; padding: 8px 0; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1>Conflict-Free University Timetable Generator</h1>
+    <p>Course scheduling using a greedy graph-colouring approach</p>
+  </div>
+</header>
+
+<main>
+  <div class="layout">
+    <section class="card input-card">
+      <h2>Add a course</h2>
+      <form id="courseForm">
+        <label for="courseName">Course name / code</label>
+        <input id="courseName" placeholder="e.g. CS301 - Algorithms" required maxlength="70">
+
+        <div class="two">
+          <div>
+            <label for="faculty">Faculty</label>
+            <input id="faculty" placeholder="e.g. Dr. Kumar" required maxlength="50">
+          </div>
+          <div>
+            <label for="group">Student group</label>
+            <input id="group" placeholder="e.g. CSE-A" required maxlength="30">
+          </div>
+        </div>
+
+        <div class="two">
+          <div>
+            <label for="students">Students</label>
+            <input id="students" type="number" min="1" max="1000" value="40" required>
+          </div>
+          <div>
+            <label for="roomType">Room type</label>
+            <select id="roomType">
+              <option value="Classroom">Classroom</option>
+              <option value="Lab">Lab</option>
+              <option value="Seminar">Seminar</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" type="submit">Add Course</button>
+      </form>
+
+      <div class="section-head" style="margin-top:24px">
+        <h2>Courses</h2>
+        <span class="pill" id="courseCount">0 courses</span>
+      </div>
+      <div id="courseList" class="course-list">
+        <p class="muted">No courses yet. Add a course above or load the sample data.</p>
+      </div>
+
+      <h2 style="margin-top:25px">Timetable settings</h2>
+      <div class="two">
+        <div>
+          <label for="days">Days per week</label>
+          <select id="days">
+            <option value="5" selected>5 days</option>
+            <option value="6">6 days</option>
+          </select>
+        </div>
+        <div>
+          <label for="periods">Periods per day</label>
+          <select id="periods">
+            <option value="4">4 periods</option>
+            <option value="5">5 periods</option>
+            <option value="6" selected>6 periods</option>
+            <option value="7">7 periods</option>
+            <option value="8">8 periods</option>
+          </select>
+        </div>
+      </div>
+      <button id="generateBtn" class="primary" type="button">Generate Timetable</button>
+      <div class="toolbar" style="margin-top:10px">
+        <button id="sampleBtn" class="secondary" type="button">Load Sample Data</button>
+        <button id="clearBtn" class="danger" type="button">Clear All</button>
+      </div>
+      <p class="muted">Conflicts are checked by faculty and student group. Rooms are assigned by capacity and room type.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Generated timetable</h2>
+        <button class="secondary no-print" id="printBtn" type="button">Print</button>
+      </div>
+      <div id="message" class="message" role="status" aria-live="polite"></div>
+      <div class="stats">
+        <div class="stat"><span>Courses</span><strong id="statCourses">0</strong></div>
+        <div class="stat"><span>Time slots used</span><strong id="statSlots">—</strong></div>
+        <div class="stat"><span>Unassigned</span><strong id="statUnassigned">—</strong></div>
+      </div>
+      <div id="timetableOutput">
+        <div class="empty">Add courses, then select <strong>Generate Timetable</strong>.</div>
+      </div>
+    </section>
+  </div>
+</main>
+<footer>University Timetable Project · Greedy graph colouring with room allocation</footer>
+
+<script>
+  "use strict";
+
+  const courses = [];
+  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const PERIODS = [
+    "09:00–10:00", "10:00–11:00", "11:15–12:15", "12:15–13:15",
+    "14:00–15:00", "15:00–16:00", "16:00–17:00", "17:00–18:00"
+  ];
+
+  // Sample rooms can be edited here to match your institution.
+  const rooms = [
+    { name: "Room 101", capacity: 60, type: "Classroom" },
+    { name: "Room 102", capacity: 40, type: "Classroom" },
+    { name: "Room 201", capacity: 100, type: "Classroom" },
+    { name: "Computer Lab 1", capacity: 40, type: "Lab" },
+    { name: "Computer Lab 2", capacity: 60, type: "Lab" },
+    { name: "Seminar Hall", capacity: 120, type: "Seminar" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+
+  function showMessage(text, type) {
+    const el = $("message");
+    el.textContent = text;
+    el.className = "message " + type;
+  }
+
+  function clearMessage() {
+    $("message").textContent = "";
+    $("message").className = "message";
+  }
+
+  function escapeHTML(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[char]);
+  }
+
+  function renderCourses() {
+    $("courseCount").textContent = `${courses.length} course${courses.length === 1 ? "" : "s"}`;
+    $("statCourses").textContent = courses.length;
+    const list = $("courseList");
+    if (courses.length === 0) {
+      list.innerHTML = '<p class="muted">No courses yet. Add a course above or load the sample data.</p>';
+      return;
+    }
+    list.innerHTML = courses.map((c, i) => `
+      <div class="course-item">
+        <div>
+          <strong>${escapeHTML(c.name)}</strong>
+          <small>${escapeHTML(c.faculty)} · ${escapeHTML(c.group)} · ${c.students} students · ${escapeHTML(c.type)}</small>
+        </div>
+        <button class="danger" type="button" data-remove="${i}" aria-label="Remove ${escapeHTML(c.name)}">Remove</button>
+      </div>
+    `).join("");
+  }
+
+  $("courseForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = $("courseName").value.trim();
+    const faculty = $("faculty").value.trim();
+    const group = $("group").value.trim();
+    const students = Number($("students").value);
+    const type = $("roomType").value;
+
+    if (!name || !faculty || !group || !Number.isInteger(students) || students < 1) {
+      showMessage("Please enter valid course details.", "error");
+      return;
+    }
+    if (courses.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      showMessage("A course with that name/code already exists.", "error");
+      return;
+    }
+
+    courses.push({ name, faculty, group, students, type });
+    renderCourses();
+    $("courseForm").reset();
+    $("students").value = 40;
+    clearMessage();
+  });
+
+  $("courseList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove]");
+    if (!button) return;
+    courses.splice(Number(button.dataset.remove), 1);
+    renderCourses();
+    clearMessage();
+  });
+
+  function conflicts(a, b) {
+    return a.faculty.trim().toLowerCase() === b.faculty.trim().toLowerCase()
+      || a.group.trim().toLowerCase() === b.group.trim().toLowerCase();
+  }
+
+  // Welsh-Powell-style greedy colouring: schedule highest-degree courses first.
+  function colourCourses(items) {
+    const adjacency = new Map(items.map(c => [c.name, new Set()]));
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        if (conflicts(items[i], items[j])) {
+          adjacency.get(items[i].name).add(items[j].name);
+          adjacency.get(items[j].name).add(items[i].name);
+        }
+      }
+    }
+
+    const order = [...items].sort((a, b) =>
+      adjacency.get(b.name).size - adjacency.get(a.name).size
+      || a.name.localeCompare(b.name)
+    );
+    const colours = new Map();
+    for (const course of order) {
+      const used = new Set(
+        [...adjacency.get(course.name)]
+          .map(neighbour => colours.get(neighbour))
+          .filter(value => value !== undefined)
+      );
+      let colour = 0;
+      while (used.has(colour)) colour++;
+      colours.set(course.name, colour);
+    }
+    return { colours, adjacency };
+  }
+
+  function allocateRooms(items, colours) {
+    const assignments = [];
+    const roomUse = new Set();
+    const sorted = [...items].sort((a, b) => b.students - a.students);
+    for (const course of sorted) {
+      const colour = colours.get(course.name);
+      const room = rooms
+        .filter(r => r.type === course.type && r.capacity >= course.students)
+        .sort((a, b) => a.capacity - b.capacity)
+        .find(r => !roomUse.has(`${colour}|${r.name}`));
+      if (room) roomUse.add(`${colour}|${room.name}`);
+      assignments.push({ course, colour, room: room || null });
+    }
+    return assignments;
+  }
+
+  function generateTimetable() {
+    clearMessage();
+    if (courses.length === 0) {
+      showMessage("Please add at least one course before generating the timetable.", "error");
+      return;
+    }
+
+    const dayCount = Number($("days").value);
+    const periodsPerDay = Number($("periods").value);
+    const totalSlots = dayCount * periodsPerDay;
+    const { colours, adjacency } = colourCourses(courses);
+    const assignments = allocateRooms(courses, colours);
+    const unassignedSlotCount = [...colours.values()].filter(c => c >= totalSlots).length;
+    const unassignedRooms = assignments.filter(a => !a.room).length;
+
+    const dayNames = DAYS.slice(0, dayCount);
+    const rows = assignments.map(({ course, colour, room }) => {
+      const dayIndex = Math.floor(colour / periodsPerDay);
+      const periodIndex = colour % periodsPerDay;
+      const withinGrid = colour < totalSlots;
+      return {
+        course, colour,
+        day: withinGrid ? dayNames[dayIndex] : "No available slot",
+        time: withinGrid ? PERIODS[periodIndex] : "—",
+        room: room ? room.name : "No suitable room",
+        status: !withinGrid ? "No time slot" : (!room ? "Room unavailable" : "Scheduled")
+      };
+    }).sort((a, b) => a.colour - b.colour || a.course.name.localeCompare(b.course.name));
+
+    const usedSlots = new Set(rows.filter(r => r.colour < totalSlots).map(r => r.colour)).size;
+    $("statSlots").textContent = usedSlots;
+    $("statUnassigned").textContent = unassignedSlotCount + unassignedRooms;
+
+    $("timetableOutput").innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Course</th><th>Faculty</th><th>Student group</th><th>Day</th><th>Time</th><th>Room</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td><strong>${escapeHTML(r.course.name)}</strong><br><span class="muted">${r.course.students} students</span></td>
+                <td>${escapeHTML(r.course.faculty)}</td>
+                <td>${escapeHTML(r.course.group)}</td>
+                <td>${escapeHTML(r.day)}</td>
+                <td>${escapeHTML(r.time)}</td>
+                <td>${escapeHTML(r.room)}</td>
+                <td><span class="pill">${escapeHTML(r.status)}</span></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:14px">
+        Algorithm: greedy graph colouring orders courses by conflict degree and assigns the first available colour
+        (time slot). Room allocation then selects the smallest compatible room with enough capacity.
+      </p>
+    `;
+
+    if (unassignedSlotCount || unassignedRooms) {
+      showMessage(
+        `Timetable generated with ${unassignedSlotCount} course(s) without a time slot and ${unassignedRooms} course(s) without a suitable room. Add more periods or compatible rooms, then try again.`,
+        "error"
+      );
+    } else {
+      showMessage("Timetable generated. Courses sharing a faculty member or student group are assigned different time slots.", "success");
+    }
+  }
+
+  $("generateBtn").addEventListener("click", generateTimetable);
+  $("printBtn").addEventListener("click", () => window.print());
+
+  $("sampleBtn").addEventListener("click", () => {
+    courses.splice(0, courses.length,
+      { name: "CS301 - Algorithms", faculty: "Dr. Kumar", group: "CSE-A", students: 40, type: "Classroom" },
+      { name: "CS302 - Database Systems", faculty: "Ms. Priya", group: "CSE-A", students: 40, type: "Lab" },
+      { name: "CS303 - Computer Networks", faculty: "Dr. Kumar", group: "CSE-B", students: 35, type: "Classroom" },
+      { name: "MA301 - Discrete Mathematics", faculty: "Mr. Arun", group: "CSE-B", students: 35, type: "Classroom" },
+      { name: "CS304 - Web Technology", faculty: "Ms. Priya", group: "CSE-C", students: 45, type: "Lab" },
+      { name: "HS301 - Communication Skills", faculty: "Dr. Meena", group: "CSE-A", students: 40, type: "Seminar" }
+    );
+    renderCourses();
+    generateTimetable();
+  });
+
+  $("clearBtn").addEventListener("click", () => {
+    courses.splice(0, courses.length);
+    renderCourses();
+    $("statSlots").textContent = "—";
+    $("statUnassigned").textContent = "—";
+    $("timetableOutput").innerHTML = '<div class="empty">Add courses, then select <strong>Generate Timetable</strong>.</div>';
+    clearMessage();
+  });
+
+  renderCourses();
+</script>
+</body>
+</html>
